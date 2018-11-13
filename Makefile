@@ -1,109 +1,64 @@
-SHELL = /bin/sh
-#CC      = gcc
-CC      = g++
-AR      = ar
-ARFL    = rv
-RANLIB  = ranlib
+BUILD:=debug
 
-CFLAGS = -c -static -g -fno-inline -W -Wall -Wcast-qual -Wcast-align \
--Wpointer-arith -O2 \
--D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS -D_USE_FAST_MACRO \
--DHAS_LIB_CORE -DUSE_LIBCORE_LOG -std=c++11
-###########################################################
-#Check system:
-#       Linux, SunOS, Solaris, BSD variants, AIX, HP-UX
-SYSLIB =
-CHECKSYSRES = @echo "Unknow system type!";exit 1
-UNIXNAME = $(shell uname -sm)
+SRC_DIR:=src
+BUILD_DIR:=build
+BIN_DIR:=bin
 
-#Path for Linux
-ifeq ($(findstring Linux, $(UNIXNAME)), Linux)
-	ifeq ($CC, "g++")
-		CFLAGS += -Wstrict-prototypes
-	endif
-	ifeq ($(findstring i686, $(UNIXNAME)), i686)
-		SYS_PATH=linux32
-		GLIB_INCL_PATH = -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include
-	endif
-	ifeq ($(findstring x86_64, $(UNIXNAME)), x86_64)
-		SYS_PATH=linux64
-		GLIB_INCL_PATH = -I/usr/include/glib-2.0 -I/usr/lib64/glib-2.0/include
-	endif
-	CFLAGS += -DLINUX2
-	SYSLIB = -lcrypt -lpthread
+TEST_DIR:=test
+
+SRC:=$(wildcard $(SRC_DIR)/*.cpp) 
+
+OBJ:=$(addprefix $(BUILD_DIR)/, $(SRC:.cpp=.o))
+BIN:=tcp_client
+
+CPPFLAGS+=-Iinclude -Iinclude/$(COLLECTOR) -Iinclude/$(LOGGER) \
+		-Iinclude/$(UTILS) -I/usr/local/include
+
+CXXFLAGS+=-Wall -pedantic -Wextra -std=c++11 -MMD -D_GLIBCXX_USE_NANOSLEEP \
+	-Wno-deprecated -Wdeprecated-declarations \
+	-Wno-unused-parameter  # 设置此项，不提示“未使用变量”，正式程序需要去掉
+LDFLAGS:=-L/usr/local/lib
+LDLIBS:=-pthread -lboost_system -lboost_thread -lrt -lcurl -llog4cplus -ljson
+
+ifeq ($(BUILD), release)
+CPPFLAGS+=-DNDEBUG
+CFLAGS+=-O2
+CXXFLAGS+=-O2
+LDFLAGS+=-O2 -s
+else
+#CPPFLAGS+=-DDEBUG
+CFLAGS+=-O0 -g
+CXXFLAGS+=-O0 -g
+LDFLAGS+=-O0 -g
 endif
 
-#Path for SunOS
-ifeq ($(findstring SunOS, $(UNIXNAME)), SunOS)
-	ifeq ($(findstring 86, $(UNIXNAME)), 86)
-		SYSLIB = -lsocket -lnsl -lrt
-	endif
-	ifeq ($(findstring sun4u, $(UNIXNAME)), sun4u)
-		SYSLIB = -lsocket -lnsl -lrt
-	endif
-	ifeq ($CC, "gcc")
-		CFLAGS += -Wstrict-prototypes
-	endif
-	SYS_PATH=sunos_x86
-	CFLAGS += -DSUNOS5
-endif
+.PHONY: all release clean
 
-#Path for HP-UX
-ifeq ($(findstring HP-UX, $(UNIXNAME)), HP-UX)
-	ifeq ($CC, "gcc")
-		CFLAGS += -Wstrict-prototypes
-	endif
-	SYSLIB = -lpthread
-	CFLAGS += -DHP_UX -DHPUX11
-	PLAT_NAME=hp-ux
-endif
+all: $(BIN_DIR)/$(BIN)
+	@:
 
-#Find system type.
-ifneq ($(SYSPATH),)
-	CHECKSYSRES = @echo "System is $(shell uname -sm)"
-endif
+release:
+	@make -s "BUILD=release"
 
-ifeq ($(BTC), used)
-	CFLAGS += -D BTC
-endif
-###########################################################
+$(BIN_DIR)/$(BIN): $(OBJ)
+	@mkdir -p $(dir $@)
+	@echo "(LD) $@"
+	@$(CXX) $(LDFLAGS) $^ $(LDLIBS) -o $@
 
-LIB_NAME_PATH = -L$(C8Y_LIB_PATH)/lib -L/usr/local/lib64  -L/usr/lib64
+$(BUILD_DIR)/%.o: %.cpp
+	@mkdir -p $(dir $@)
+	@echo "(CXX) $@"
+	@$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< -c -o $@
 
-ALL_LIBS = -lcurl -llua5.1 -lm -ldl -lsera -lboost_system -lm -lboost_thread -pthread
-
-INCLUDE =  -I. -I./include -I$(C8Y_LIB_PATH)/include 
-
-CFLAGS += $(INCLUDE)
-
-OUTPATH = ./build/
-OBJ_OUTPATH = $(OUTPATH)
-
-#Project's objs
-SOURCES = $(wildcard ./src/*.cc)
-INCLUDES = $(wildcard ./include/*.h)
-OBJS = $(patsubst ./src/%.cc,$(OBJ_OUTPATH)%.o,$(SOURCES))
-
-###########################################################
-
-PROG_NAME  = ./bin/tcp_client
-
-.PHONY = clean
-COMPILE = $(CC) $(CFLAGS)
-
-all: $(PROG_NAME) 
-	@echo $(SOURCES)
-
-$(PROG_NAME): $(OBJS)
-	@echo "$(PROG_NAME)"
-	$(CC) -o $(PROG_NAME) $(OBJS) $(LIB_NAME_PATH) $(ALL_LIBS)
-
-$(OBJ_OUTPATH)%.o: ./src/%.cc ./include/*.h
-	@echo "$(CC) $@"
-	$(COMPILE) -o $@ $<
+$(BUILD_DIR)/%.o: %.c
+	@mkdir -p $(dir $@)
+	@echo "(CXX) $@"
+	@$(CC) $(CFLAGS) $< -c -o $@
 
 clean:
-	rm -f $(OBJS) $(PROG_NAME)
-	rm -f $(PROG_NAME)$(PROG_NAME)
+	@rm -rf $(BUILD_DIR)/* $(BIN_DIR)/$(BIN)
 
-rebuild: clean all
+clean_all:
+	@rm -rf $(BUILD_DIR)/* $(BIN_DIR)/*
+
+-include $(OBJ:.o=.d)
