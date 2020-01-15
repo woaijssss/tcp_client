@@ -10,10 +10,8 @@
 #include "client.h"
 #include "session.h"
 #include "qklogger.h"
-#include "global.h"
 
 using namespace std;
-using namespace GLOBAL;
 
 extern int device_count;
 
@@ -59,22 +57,13 @@ void Client::start()
 {
         long did = 900000000000000;
         for (int i = 0; i < device_count; i++) {
-                sessionor sess(
-                                new Session(_tp.getIoService(), _ip, _port, to_string(did + i),
-                                                _send_seq, i));
+                sessionor sess(new Session(_tp.getIoService(), _ip, _port, to_string(did + i), _send_seq, i));
                 if (!sess->connect()) {
                         QkDebug("Connect to remoter failed...");
                 } else {    // 连接成功
-                        QkDebug(to_string(did + i) + " connect established...");
+                        QkDebug(to_string(did+i) + " connect established...");
                         sess->setTimer();
                         sess->read();
-
-                        string id = "ETUNG:" + to_string(did+i);
-                        sess->write((u8*)id.c_str(), id.size()+1);
-//                        unsigned char p[] = {0x01, 0x94, 0x35, 0x77, 0xe5, 0x3e, 0x01, 0x00, 0x02,
-//                                        0x01, 0x05, 0x55, 0x0c, 0x00, 0x01, 0x00, 0x03, 0x00, 0xb7,
-//                                        0xc4, 0x58, 0x23};
-//                        sess->write(p, sizeof(p));
                 }
         }
 }

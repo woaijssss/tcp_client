@@ -60,8 +60,6 @@ private:
         /* 真正的关闭socket */
         void close();
 
-        void reConnect();
-
 private:
         boost::asio::io_service& _io_service;
         boost::asio::ip::tcp::socket* _sock;
